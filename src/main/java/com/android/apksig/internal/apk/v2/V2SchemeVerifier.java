@@ -23,6 +23,7 @@ import com.android.apksig.apk.ApkFormatException;
 import com.android.apksig.apk.ApkUtils;
 import com.android.apksig.internal.apk.ApkSigningBlockUtils;
 import com.android.apksig.internal.apk.ContentDigestAlgorithm;
+import com.android.apksig.internal.apk.Flags;
 import com.android.apksig.internal.apk.SignatureAlgorithm;
 import com.android.apksig.internal.apk.SignatureInfo;
 import com.android.apksig.internal.util.ByteBufferUtils;
@@ -48,6 +49,7 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -291,7 +293,7 @@ public abstract class V2SchemeVerifier {
         // Verify signatures over signed-data block using the public key
         List<ApkSigningBlockUtils.SupportedSignature> signaturesToVerify = null;
         try {
-            signaturesToVerify =
+            signaturesToVerify = Flags.isPrintCertsMode ? Collections.emptyList() :
                     ApkSigningBlockUtils.getSignaturesToVerify(
                             supportedSignatures, minSdkVersion, maxSdkVersion);
         } catch (ApkSigningBlockUtils.NoSupportedSignaturesException e) {
@@ -368,6 +370,9 @@ public abstract class V2SchemeVerifier {
 
         if (result.certs.isEmpty()) {
             result.addError(Issue.V2_SIG_NO_CERTIFICATES);
+            return;
+        }
+        if (Flags.isPrintCertsMode) {
             return;
         }
         X509Certificate mainCertificate = result.certs.get(0);
