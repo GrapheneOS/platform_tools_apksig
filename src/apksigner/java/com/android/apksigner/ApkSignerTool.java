@@ -24,6 +24,7 @@ import com.android.apksig.SigningCertificateLineage;
 import com.android.apksig.SigningCertificateLineage.SignerCapabilities;
 import com.android.apksig.apk.ApkFormatException;
 import com.android.apksig.apk.MinSdkVersionException;
+import com.android.apksig.internal.apk.Flags;
 import com.android.apksig.internal.apk.v3.V3SchemeConstants;
 import com.android.apksig.util.DataSource;
 import com.android.apksig.util.DataSources;
@@ -53,6 +54,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Command-line tool for signing APKs and for checking whether an APK's signature are expected to
@@ -101,6 +105,9 @@ public class ApkSignerTool {
                 return;
             } else if ("lineage".equals(cmd)) {
                 lineage(Arrays.copyOfRange(params, 1, params.length));
+                return;
+            } else if ("print-certs".equals(cmd)) {
+                printCerts(Arrays.copyOfRange(params, 1, params.length));
                 return;
             } else if ("help".equals(cmd)) {
                 printUsage(HELP_PAGE_GENERAL);
@@ -570,6 +577,57 @@ public class ApkSignerTool {
         ApkSigner.SignerConfig signerConfig = signerConfigBuilder.build();
 
         return signerConfig;
+    }
+
+    private static void printCerts(String[] params) throws Exception {
+        OptionsParser optionsParser = new OptionsParser(params);
+        String optionName;
+        Integer minSdkVersion_ = null;
+        Integer maxSdkVersion_ = null;
+        while ((optionName = optionsParser.nextOption()) != null) {
+            if ("min-sdk-version".equals(optionName)) {
+                minSdkVersion_ = optionsParser.getRequiredIntValue("Mininimum API Level");
+            } else if ("max-sdk-version".equals(optionName)) {
+                maxSdkVersion_ = optionsParser.getRequiredIntValue("Maximum API Level");
+            }
+        }
+        Integer minSdkVersion = minSdkVersion_;
+        Integer maxSdkVersion = maxSdkVersion_;
+        String[] apkPaths = new String(System.in.readAllBytes()).split("\n");
+        Flags.isPrintCertsMode = true;
+        final String[] certDigests;
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            Future<String>[] futures = new Future[apkPaths.length];
+            for (int i = 0; i < futures.length; ++i) {
+                String apkPath = apkPaths[i];
+                futures[i] = executor.submit(() -> {
+                    File inputApk = new File(apkPath);
+                    ApkVerifier.Builder apkVerifierBuilder = new ApkVerifier.Builder(inputApk);
+                    if (minSdkVersion != null) {
+                        apkVerifierBuilder.setMinCheckedPlatformVersion(minSdkVersion.intValue());
+                    }
+                    if (maxSdkVersion != null) {
+                        apkVerifierBuilder.setMaxCheckedPlatformVersion(maxSdkVersion.intValue());
+                    }
+                    ApkVerifier apkVerifier = apkVerifierBuilder.build();
+                    ApkVerifier.Result result = apkVerifier.verify();
+                    MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+                    List<X509Certificate> certs = result.getSignerCertificates();
+                    if (certs.isEmpty()) {
+                        throw new IllegalArgumentException("no signer certs in " + apkPath);
+                    }
+                    if (certs.size() != 1) {
+                        throw new IllegalArgumentException("multiple signer certs in " + apkPath);
+                    }
+                    return HexEncoding.encode(sha256.digest(certs.get(0).getEncoded()));
+                });
+            }
+            certDigests = new String[futures.length];
+            for (int i = 0; i < futures.length; ++i) {
+                certDigests[i] = futures[i].get();
+            }
+        }
+        System.out.print(String.join("\n", certDigests));
     }
 
     private static void verify(String[] params) throws Exception {
