@@ -93,7 +93,7 @@ java_defaults {
     java_resource_dirs: ["src/apksigner/java"],
     manifest: "src/apksigner/apksigner.mf",
     static_libs: ["conscrypt-unbundled"],
-    java_version: "1.8",
+    java_version: "21",
     target: {
         not_windows: {
             jni_libs: ["libconscrypt_openjdk_jni"],
