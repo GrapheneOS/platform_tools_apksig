@@ -91,6 +91,7 @@ import java.util.Set;
  * @see <a href="https://source.android.com/security/apksigning/index.html">Application Signing</a>
  */
 public class ApkVerifier {
+    public boolean noVerify;
 
     private static final Set<Issue> LINEAGE_RELATED_ISSUES = new HashSet<>(Arrays.asList(
         Issue.V3_SIG_MALFORMED_LINEAGE, Issue.V3_INCONSISTENT_LINEAGES,

@@ -19,7 +19,6 @@ package com.android.apksig.internal.apk.v3;
 import static com.android.apksig.internal.apk.ApkSigningBlockUtils.getLengthPrefixedSlice;
 import static com.android.apksig.internal.apk.ApkSigningBlockUtils.readLengthPrefixedByteArray;
 
-import com.android.apksig.ApkVerificationIssue;
 import com.android.apksig.ApkVerifier.Issue;
 import com.android.apksig.SigningCertificateLineage;
 import com.android.apksig.apk.ApkFormatException;
@@ -27,6 +26,7 @@ import com.android.apksig.apk.ApkUtils;
 import com.android.apksig.internal.apk.ApkSigningBlockUtils;
 import com.android.apksig.internal.apk.ApkSigningBlockUtils.SignatureNotFoundException;
 import com.android.apksig.internal.apk.ContentDigestAlgorithm;
+import com.android.apksig.internal.apk.Flags;
 import com.android.apksig.internal.apk.SignatureAlgorithm;
 import com.android.apksig.internal.apk.SignatureInfo;
 import com.android.apksig.internal.util.ByteBufferUtils;
@@ -53,6 +53,7 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.OptionalInt;
@@ -175,8 +176,10 @@ public class V3SchemeVerifier {
         if (mResult.containsErrors()) {
             return mResult;
         }
-        ApkSigningBlockUtils.verifyIntegrity(mExecutor, beforeApkSigningBlock, centralDir, eocd,
-                mContentDigestsToVerify, mResult);
+        if (!Flags.isPrintCertsMode) {
+            ApkSigningBlockUtils.verifyIntegrity(mExecutor, beforeApkSigningBlock, centralDir, eocd,
+                    mContentDigestsToVerify, mResult);
+        }
 
         // make sure that the v3 signers cover the entire targeted sdk version ranges and that the
         // longest SigningCertificateHistory, if present, corresponds to the newest platform
@@ -395,7 +398,7 @@ public class V3SchemeVerifier {
         // Verify signatures over signed-data block using the public key
         List<ApkSigningBlockUtils.SupportedSignature> signaturesToVerify = null;
         try {
-            signaturesToVerify =
+            signaturesToVerify = Flags.isPrintCertsMode ? Collections.emptyList() :
                     ApkSigningBlockUtils.getSignaturesToVerify(
                             supportedSignatures, result.minSdkVersion, result.maxSdkVersion);
         } catch (ApkSigningBlockUtils.NoSupportedSignaturesException e) {
@@ -487,6 +490,9 @@ public class V3SchemeVerifier {
 
         if (result.certs.isEmpty()) {
             result.addError(Issue.V3_SIG_NO_CERTIFICATES);
+            return;
+        }
+        if (Flags.isPrintCertsMode) {
             return;
         }
         X509Certificate mainCertificate = result.certs.get(0);
