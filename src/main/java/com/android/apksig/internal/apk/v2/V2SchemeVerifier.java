@@ -157,8 +157,10 @@ public abstract class V2SchemeVerifier {
         if (result.containsErrors()) {
             return;
         }
-        ApkSigningBlockUtils.verifyIntegrity(
-                executor, beforeApkSigningBlock, centralDir, eocd, contentDigestsToVerify, result);
+        if (!com.android.apksig.internal.apk.Flags.isPrintCertsMode) {
+            ApkSigningBlockUtils.verifyIntegrity(
+                    executor, beforeApkSigningBlock, centralDir, eocd, contentDigestsToVerify, result);
+        }
         if (!result.containsErrors()) {
             result.verified = true;
         }
